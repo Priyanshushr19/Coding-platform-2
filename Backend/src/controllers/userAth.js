@@ -231,30 +231,30 @@ const login = async (req, res) => {
   }
 };
 
-
 const logout = async (req, res) => {
-    try {
-        const { token } = req.cookies;
+  try {
+    const { token } = req.cookies;
 
-        if (token) {
-            const payload = jwt.decode(token);
+    if (token) {
+      const payload = jwt.decode(token);
 
-            // Blacklist token in Redis
-            await redisClient.set(`token:${token}`, 'Blocked');
-            await redisClient.expireAt(`token:${token}`, payload.exp);
-        }
-
-        // 🔥 Properly clear cookie
-        res.clearCookie("token", {
-            httpOnly: true,
-            secure: true,
-            sameSite: "None",
-        });
-
-        res.send("Logged Out Successfully");
-    } catch (error) {
-        res.status(503).send("Error: " + error);
+      await redisClient.set(`token:${token}`, "Blocked");
+      await redisClient.expireAt(`token:${token}`, payload.exp);
     }
+
+    // 🔥 FIXED COOKIE CLEAR
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      path: "/" // ✅ VERY IMPORTANT
+    });
+
+    res.status(200).json({ success: true, message: "Logged Out Successfully" });
+
+  } catch (error) {
+    res.status(503).json({ success: false, message: error.message });
+  }
 };
 
 // const logout = async (req, res) => {
