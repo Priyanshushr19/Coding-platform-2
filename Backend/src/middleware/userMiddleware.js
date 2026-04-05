@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
-import redisClient from "../config/redis.js";
+import {redisClient} from "../config/redis.js";
 
 const userMiddleware = async (req, res, next) => {
   try {
