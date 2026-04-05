@@ -292,35 +292,35 @@ const logout = async (req, res) => {
 }
 
 
-const logout = async (req, res) => {
-  try {
-    const { token } = req.cookies;
+// const logout = async (req, res) => {
+//   try {
+//     const { token } = req.cookies;
 
-    if (!token) {
-      return res.status(400).json({ success: false, message: "No token found" });
-    }
+//     if (!token) {
+//       return res.status(400).json({ success: false, message: "No token found" });
+//     }
 
-    // Verify the token first
-    const payload = jwt.verify(token, process.env.JWT_KEY);
+//     // Verify the token first
+//     const payload = jwt.verify(token, process.env.JWT_KEY);
 
-    // Block the token in Redis until it naturally expires
-    await redisClient.set(`token:${token}`, "Blocked");
-    await redisClient.expireAt(`token:${token}`, payload.exp);
+//     // Block the token in Redis until it naturally expires
+//     await redisClient.set(`token:${token}`, "Blocked");
+//     await redisClient.expireAt(`token:${token}`, payload.exp);
 
-    // Clear the cookie
-    res.cookie("token", "", {
-      httpOnly: true,
-      expires: new Date(Date.now()),
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production",
-    });
+//     // Clear the cookie
+//     res.cookie("token", "", {
+//       httpOnly: true,
+//       expires: new Date(Date.now()),
+//       sameSite: "strict",
+//       secure: process.env.NODE_ENV === "production",
+//     });
 
-    res.json({ success: true, message: "Logged out successfully" });
+//     res.json({ success: true, message: "Logged out successfully" });
 
-  } catch (error) {
-    res.status(503).json({ success: false, message: error.message });
-  }
-};
+//   } catch (error) {
+//     res.status(503).json({ success: false, message: error.message });
+//   }
+// };
 
 
 const adminRegister = async (req, res) => {
