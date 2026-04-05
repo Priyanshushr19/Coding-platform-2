@@ -235,56 +235,27 @@ const login = async (req, res) => {
 const logout = async (req, res) => {
     try {
         const { token } = req.cookies;
-        
-        if (!token) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "No token found" 
-            });
+
+        if (token) {
+            const payload = jwt.decode(token);
+
+            // Blacklist token in Redis
+            await redisClient.set(`token:${token}`, 'Blocked');
+            await redisClient.expireAt(`token:${token}`, payload.exp);
         }
 
-        // Verify token before blocking (to get expiration)
-        let payload;
-        try {
-            payload = jwt.verify(token, process.env.JWT_KEY);
-        } catch (err) {
-            // Token might be expired, but we still want to clear cookie
-            payload = jwt.decode(token);
-        }
-
-        // Block token in Redis with graceful degradation
-        try {
-            if (redisClient.isOpen && payload?.exp) {
-                const ttl = payload.exp - Math.floor(Date.now() / 1000);
-                if (ttl > 0) {
-                    await redisClient.setEx(`token:${token}`, ttl, 'blocked');
-                }
-            }
-        } catch (redisError) {
-            console.warn('Redis logout failed, continuing:', redisError.message);
-            // Continue even if Redis fails
-        }
-
-        // Clear cookie
-        res.cookie("token", "", {
+        // 🔥 Properly clear cookie
+        res.clearCookie("token", {
             httpOnly: true,
-            expires: new Date(Date.now()),
-            sameSite: "strict",
-            secure: process.env.NODE_ENV === "production"
+            secure: true,
+            sameSite: "None",
         });
 
-        return res.status(200).json({ 
-            success: true, 
-            message: "Logged out successfully" 
-        });
+        res.send("Logged Out Successfully");
     } catch (error) {
-        console.error('Logout error:', error);
-        return res.status(500).json({ 
-            success: false, 
-            message: "Logout failed" 
-        });
+        res.status(503).send("Error: " + error);
     }
-}
+};
 
 // const logout = async (req, res) => {
 //   try {
