@@ -236,38 +236,59 @@ const login = async (req, res) => {
 
 
 const logout = async (req, res) => {
-  try {
-    const { token } = req.cookies;
+    try {
+        const { token } = req.cookies;
+        
+        if (!token) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "No token found" 
+            });
+        }
 
-    if (token) {
-      const payload = jwt.decode(token);
+        // Verify token before blocking (to get expiration)
+        let payload;
+        try {
+            payload = jwt.verify(token, process.env.JWT_KEY);
+        } catch (err) {
+            // Token might be expired, but we still want to clear cookie
+            payload = jwt.decode(token);
+        }
 
-      // 🔥 Blacklist token
-      await redisClient.set(`token:${token}`, "Blocked");
-      await redisClient.expireAt(`token:${token}`, payload.exp);
+        // Block token in Redis with graceful degradation
+        try {
+            if (redisClient.isOpen && payload?.exp) {
+                const ttl = payload.exp - Math.floor(Date.now() / 1000);
+                if (ttl > 0) {
+                    await redisClient.setEx(`token:${token}`, ttl, 'blocked');
+                }
+            }
+        } catch (redisError) {
+            console.warn('Redis logout failed, continuing:', redisError.message);
+            // Continue even if Redis fails
+        }
+
+        // Clear cookie
+        res.cookie("token", "", {
+            httpOnly: true,
+            expires: new Date(Date.now()),
+            sameSite: "strict",
+            secure: process.env.NODE_ENV === "production"
+        });
+
+        return res.status(200).json({ 
+            success: true, 
+            message: "Logged out successfully" 
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
+        return res.status(500).json({ 
+            success: false, 
+            message: "Logout failed" 
+        });
     }
+}
 
-    // 🔥 CLEAR COOKIE (EXACT MATCH)
-    res.cookie("token", "", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      path: "/",
-      expires: new Date(0) // 🔥 THIS FIXES EVERYTHING
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Logged Out Successfully"
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
 
 // const logout = async (req, res) => {
 //   try {
