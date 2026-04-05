@@ -230,29 +230,39 @@ const login = async (req, res) => {
     });
   }
 };
+
+
 const logout = async (req, res) => {
-    try {
-        const { token } = req.cookies;
+  try {
+    const { token } = req.cookies;
 
-        if (token) {
-            const payload = jwt.decode(token);
+    if (token) {
+      const payload = jwt.decode(token);
 
-            // Blacklist token in Redis
-            await redisClient.set(`token:${token}`, 'Blocked');
-            await redisClient.expireAt(`token:${token}`, payload.exp);
-        }
-
-        // 🔥 Properly clear cookie
-        res.clearCookie("token", {
-            httpOnly: true,
-            secure: true,
-            sameSite: "None",
-        });
-
-        res.send("Logged Out Successfully");
-    } catch (error) {
-        res.status(503).send("Error: " + error);
+      // 🔥 Blacklist token
+      await redisClient.set(`token:${token}`, "Blocked");
+      await redisClient.expireAt(`token:${token}`, payload.exp);
     }
+
+    // 🔥 CLEAR COOKIE (EXACT MATCH)
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      path: "/" // 🔥 MUST MATCH LOGIN
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Logged Out Successfully"
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
 };
 
 // const logout = async (req, res) => {
