@@ -57,12 +57,18 @@ const register = async (req, res) => {
         };
 
         // 9. Store token in cookie securely
+        // res.cookie("token", token, {
+        //     maxAge: 60 * 60 * 1000,
+        //     httpOnly: true,
+        //     sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+        //     secure: process.env.NODE_ENV === "production"
+        // });
         res.cookie("token", token, {
-            maxAge: 60 * 60 * 1000,
-            httpOnly: true,
-            sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
-            secure: process.env.NODE_ENV === "production"
-        });
+  httpOnly: true,
+  secure: true,        // required for HTTPS (Render)
+  sameSite: "None",    // 🔥 MUST for cross-origin
+  maxAge: 60 * 60 * 1000
+});
 
         // 10. Send final response
         return res.status(201).json({
@@ -197,12 +203,18 @@ const login = async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 1000
-    });
+    // res.cookie("token", token, {
+    //   httpOnly: true,
+    //   sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+    //   secure: process.env.NODE_ENV === "production",
+    //   maxAge: 60 * 60 * 1000
+    // });
+      res.cookie("token", token, {
+  httpOnly: true,
+  secure: true,        // required for HTTPS (Render)
+  sameSite: "None",    // 🔥 MUST for cross-origin
+  maxAge: 60 * 60 * 1000
+});
 
     return res.status(200).json({
       success: true,
