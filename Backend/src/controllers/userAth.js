@@ -4,6 +4,9 @@ import User from "../models/user.js";
 import validate from "../utils.js/userAuth.js";
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
+import cloudinary from "../config/cloudinary.js";
+import streamifier from "streamifier";
+
 
 const register = async (req, res) => {
     try {
@@ -327,28 +330,66 @@ const deleteProfile = async (req, res) => {
 }
 
 
+// const updateProfilePic = async (req, res) => {
+//   try {
+//     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+
+//     const updatedUser = await User.findByIdAndUpdate(
+//       req.user.id,
+//       { profilePic: req.file.path }, // Cloudinary URL ✅
+//       { new: true }
+//     );
+
+
+//     res.status(200).json({
+//       success: true,
+//       imageUrl: req.file.path, // ✅ will show cloudinary link
+//       user: updatedUser
+//     });
+
+//   } catch (err) {
+//     res.status(500).json({ message: "Upload failed", error: err.message });
+//   }
+// };
 const updateProfilePic = async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
 
+    // 🔥 Upload buffer to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "profile_pics" },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
 
+      streamifier.createReadStream(req.file.buffer).pipe(stream);
+    });
+
+    // ✅ Save URL
     const updatedUser = await User.findByIdAndUpdate(
       req.user.id,
-      { profilePic: req.file.path }, // Cloudinary URL ✅
+      { profilePic: result.secure_url },
       { new: true }
     );
 
-
     res.status(200).json({
       success: true,
-      imageUrl: req.file.path, // ✅ will show cloudinary link
+      imageUrl: result.secure_url,
       user: updatedUser
     });
 
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Upload failed", error: err.message });
   }
 };
+
 
 
 export { register, login, logout , adminRegister, deleteProfile, updateProfilePic}
