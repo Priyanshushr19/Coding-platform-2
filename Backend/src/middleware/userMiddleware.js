@@ -1,10 +1,12 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
-import {redisClient} from "../config/redis.js";
+import { redisClient } from "../config/redis.js";
 
 const userMiddleware = async (req, res, next) => {
   try {
     const { token } = req.cookies;
+
+    // ❌ No token
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -12,17 +14,18 @@ const userMiddleware = async (req, res, next) => {
       });
     }
 
-    // Verify the token
+    // 🔐 Verify JWT
     let payload;
     try {
       payload = jwt.verify(token, process.env.JWT_KEY);
-    } catch (jwtError) {
-      if (jwtError.name === 'TokenExpiredError') {
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
         return res.status(401).json({
           success: false,
           message: "Token expired"
         });
       }
+
       return res.status(401).json({
         success: false,
         message: "Invalid token"
@@ -30,6 +33,7 @@ const userMiddleware = async (req, res, next) => {
     }
 
     const { _id } = payload;
+
     if (!_id) {
       return res.status(401).json({
         success: false,
@@ -37,39 +41,40 @@ const userMiddleware = async (req, res, next) => {
       });
     }
 
-    // Check if the token is blocked in Redis (with graceful degradation)
+    // 🔥 Redis blacklist check (SAFE VERSION)
     try {
-      if (redisClient.isOpen) {
-        const isBlocked = await redisClient.get(`token:${token}`);
-        if (isBlocked) {
-          return res.status(401).json({
-            success: false,
-            message: "Token has been revoked"
-          });
-        }
+      const isBlocked = await redisClient.get(`token:${token}`);
+
+      if (isBlocked) {
+        return res.status(401).json({
+          success: false,
+          message: "Token has been revoked (logged out)"
+        });
       }
     } catch (redisError) {
-      // Continue without Redis check if Redis is unavailable
-      console.warn('Redis check failed, continuing without cache:', redisError.message);
+      // ✅ DO NOT break app if Redis fails
+      console.warn("Redis error, skipping blacklist check:", redisError.message);
     }
 
-    // Verify user exists in DB (with projection to exclude password)
-    const user = await User.findById(_id).select('-password');
+    // 🔍 Check user exists
+    const user = await User.findById(_id).select("-password");
+
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "User doesn't exist"
+        message: "User does not exist"
       });
     }
 
-    // Attach user to request for next middleware or route
+    // ✅ Attach user
     req.user = user;
-    req.userId = _id; // Also attach userId for convenience
+    req.userId = _id;
 
     next();
 
   } catch (error) {
-    console.error('User middleware error:', error);
+    console.error("User middleware error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Authentication error"
@@ -79,39 +84,84 @@ const userMiddleware = async (req, res, next) => {
 
 export default userMiddleware;
 
+// import jwt from "jsonwebtoken";
+// import User from "../models/user.js";
+// import {redisClient} from "../config/redis.js";
 
-// import jwt from "jsonwebtoken"
-// import User from "../models/user.js"
-// import redisClient from "../config/redis.js";
-
-
-// const userMiddleware=async (req,res,next)=>{
-//     try {
-        
-//         const {token}=req.cookies;
-//         if(!token) throw new Error("Token is not persent");
-
-//         const payload=jwt.verify(token,process.env.JWT_KEY)
-
-//         const {_id}=payload
-
-//         if(!_id) throw new Error("Invalid token");
-
-//         const result =await User.findById(_id)
-
-//         if(!result) throw new Error("User Doesn't Exist");
-
-//         if(IsBlock) throw new Error("Invalid Token");
-
-//         req.result=result
-
-//         next()
-//         res.status(401).send("Error: "+ err.message)
-//         // Redis ke blockList mein persent toh nahi hai
-
-//     } catch (error) {
-        
+// const userMiddleware = async (req, res, next) => {
+//   try {
+//     const { token } = req.cookies;
+//     if (!token) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Token is not present"
+//       });
 //     }
-// }
 
-// export default userMiddleware
+//     // Verify the token
+//     let payload;
+//     try {
+//       payload = jwt.verify(token, process.env.JWT_KEY);
+//     } catch (jwtError) {
+//       if (jwtError.name === 'TokenExpiredError') {
+//         return res.status(401).json({
+//           success: false,
+//           message: "Token expired"
+//         });
+//       }
+//       return res.status(401).json({
+//         success: false,
+//         message: "Invalid token"
+//       });
+//     }
+
+//     const { _id } = payload;
+//     if (!_id) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Invalid token payload"
+//       });
+//     }
+
+//     // Check if the token is blocked in Redis (with graceful degradation)
+//     try {
+//       if (redisClient.isOpen) {
+//         const isBlocked = await redisClient.get(`token:${token}`);
+//         if (isBlocked) {
+//           return res.status(401).json({
+//             success: false,
+//             message: "Token has been revoked"
+//           });
+//         }
+//       }
+//     } catch (redisError) {
+//       // Continue without Redis check if Redis is unavailable
+//       console.warn('Redis check failed, continuing without cache:', redisError.message);
+//     }
+
+//     // Verify user exists in DB (with projection to exclude password)
+//     const user = await User.findById(_id).select('-password');
+//     if (!user) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "User doesn't exist"
+//       });
+//     }
+
+//     // Attach user to request for next middleware or route
+//     req.user = user;
+//     req.userId = _id; // Also attach userId for convenience
+
+//     next();
+
+//   } catch (error) {
+//     console.error('User middleware error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Authentication error"
+//     });
+//   }
+// };
+
+// export default userMiddleware;
+
