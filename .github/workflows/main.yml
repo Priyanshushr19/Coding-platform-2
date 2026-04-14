@@ -1,0 +1,50 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Backend Dependencies
+        run: |
+          cd Backend
+          npm install
+
+      - name: Backend Start Check (ESM)
+        run: |
+          cd Backend
+          node --input-type=module -e "import('./server.js')"
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd Frontend
+          npm install
+
+      - name: Build Frontend
+        run: |
+          cd Frontend
+          npm run build
+
+      - name: Docker Build Test
+        run: |
+          docker build -t test-backend ./Backend
+          docker build -t test-frontend ./Frontend
+
+      - name: CI Passed
+        run: echo "All checks passed ✅"
