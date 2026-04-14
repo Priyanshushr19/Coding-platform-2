@@ -1925,11 +1925,13 @@ async function checkIfReplicaSet(db) {
 }
 
 // Initialize contest scheduler when server starts
-scheduleContestStatusUpdates();
-
+// scheduleContestStatusUpdates();
+if (process.env.NODE_ENV !== "test") {
+    scheduleContestStatusUpdates();
+}
 
 
 // ... [Keep your other existing functions like getContestProblem, runContestCode, etc.]
 
 // Initialize contest scheduler when server starts
-scheduleContestStatusUpdates();
+// scheduleContestStatusUpdates();
