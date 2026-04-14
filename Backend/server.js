@@ -150,9 +150,17 @@ const main = async () => {
         }
 
         // ✅ Start Server
-        server = app.listen(process.env.PORT || 3000, () => {
-            console.log(`✅ Server listening on port ${process.env.PORT || 3000}`);
+       server = app.listen(process.env.PORT || 3000, () => {
+    console.log(`✅ Server listening on port ${process.env.PORT || 3000}`);
+
+    // 🔥 Exit in CI
+    if (process.env.NODE_ENV === "test") {
+        console.log("CI detected, shutting down server...");
+        server.close(() => {
+            process.exit(0);
         });
+    }
+});
 
         // ✅ Graceful Shutdown
         const gracefulShutdown = async (signal) => {
