@@ -107,47 +107,54 @@ let server;
 
 const main = async () => {
     try {
-        // MongoDB connection with error handling
-        await mongoose.connect(process.env.MONGO_URI, {
-            serverSelectionTimeoutMS: 5000,
-            socketTimeoutMS: 45000,
-        });
-        console.log("✅ MongoDB Connected");
-
-        // Redis connection with graceful degradation
-        try {
-            const redisClient = createClient({
-                
-                username: 'default',
-            
-                
-                password: process.env.REDIS_PASSWORD,
-                socket: {
-                    host: 'redis-17216.crce182.ap-south-1-1.ec2.cloud.redislabs.com',
-                    port: 17216
-                }
+        // ✅ MongoDB (skip in CI)
+        if (process.env.NODE_ENV !== "test") {
+            await mongoose.connect(process.env.MONGO_URI, {
+                serverSelectionTimeoutMS: 5000,
+                socketTimeoutMS: 45000,
             });
-
-            await redisClient.connect();
-            console.log("✅ Redis Connected");
-
-            redisClient.on('error', (err) => {
-                console.error('Redis Client Error:', err);
-            });
-
-            redisClient.on('connect', () => {
-                console.log('Redis Client Connected');
-            });
-        } catch (redisError) {
-            console.warn("⚠️ Redis connection failed, continuing without cache:", redisError.message);
+            console.log("✅ MongoDB Connected");
+        } else {
+            console.log("⚠️ Skipping MongoDB in CI");
         }
 
+        // ✅ Redis (skip in CI)
+        let redisClient;
+        if (process.env.NODE_ENV !== "test") {
+            try {
+                redisClient = createClient({
+                    username: 'default',
+                    password: process.env.REDIS_PASSWORD,
+                    socket: {
+                        host: 'redis-17216.crce182.ap-south-1-1.ec2.cloud.redislabs.com',
+                        port: 17216
+                    }
+                });
 
+                await redisClient.connect();
+                console.log("✅ Redis Connected");
+
+                redisClient.on('error', (err) => {
+                    console.error('Redis Client Error:', err);
+                });
+
+                redisClient.on('connect', () => {
+                    console.log('Redis Client Connected');
+                });
+
+            } catch (redisError) {
+                console.warn("⚠️ Redis connection failed, continuing without cache:", redisError.message);
+            }
+        } else {
+            console.log("⚠️ Skipping Redis in CI");
+        }
+
+        // ✅ Start Server
         server = app.listen(process.env.PORT || 3000, () => {
             console.log(`✅ Server listening on port ${process.env.PORT || 3000}`);
         });
 
-        // Graceful shutdown
+        // ✅ Graceful Shutdown
         const gracefulShutdown = async (signal) => {
             console.log(`\n${signal} received. Starting graceful shutdown...`);
 
@@ -155,14 +162,16 @@ const main = async () => {
                 console.log('HTTP server closed');
 
                 try {
-                    await mongoose.connection.close();
-                    console.log('MongoDB connection closed');
+                    if (process.env.NODE_ENV !== "test") {
+                        await mongoose.connection.close();
+                        console.log('MongoDB connection closed');
+                    }
                 } catch (err) {
                     console.error('Error closing MongoDB:', err);
                 }
 
                 try {
-                    if (redisClient.isOpen) {
+                    if (redisClient && redisClient.isOpen) {
                         await redisClient.quit();
                         console.log('Redis connection closed');
                     }
@@ -173,7 +182,7 @@ const main = async () => {
                 process.exit(0);
             });
 
-            // Force shutdown after 10 seconds
+            // Force shutdown after 10s
             setTimeout(() => {
                 console.error('Forced shutdown after timeout');
                 process.exit(1);
@@ -183,7 +192,7 @@ const main = async () => {
         process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
         process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-        // Handle uncaught errors
+        // Handle errors
         process.on('unhandledRejection', (reason, promise) => {
             console.error('Unhandled Rejection at:', promise, 'reason:', reason);
         });
@@ -198,5 +207,99 @@ const main = async () => {
         process.exit(1);
     }
 };
+
+// const main = async () => {
+//     try {
+//         // MongoDB connection with error handling
+//         await mongoose.connect(process.env.MONGO_URI, {
+//             serverSelectionTimeoutMS: 5000,
+//             socketTimeoutMS: 45000,
+//         });
+//         console.log("✅ MongoDB Connected");
+
+//         // Redis connection with graceful degradation
+//         try {
+//             const redisClient = createClient({
+                
+//                 username: 'default',
+            
+                
+//                 password: process.env.REDIS_PASSWORD,
+//                 socket: {
+//                     host: 'redis-17216.crce182.ap-south-1-1.ec2.cloud.redislabs.com',
+//                     port: 17216
+//                 }
+//             });
+
+//             await redisClient.connect();
+//             console.log("✅ Redis Connected");
+
+//             redisClient.on('error', (err) => {
+//                 console.error('Redis Client Error:', err);
+//             });
+
+//             redisClient.on('connect', () => {
+//                 console.log('Redis Client Connected');
+//             });
+//         } catch (redisError) {
+//             console.warn("⚠️ Redis connection failed, continuing without cache:", redisError.message);
+//         }
+
+
+//         server = app.listen(process.env.PORT || 3000, () => {
+//             console.log(`✅ Server listening on port ${process.env.PORT || 3000}`);
+//         });
+
+//         // Graceful shutdown
+//         const gracefulShutdown = async (signal) => {
+//             console.log(`\n${signal} received. Starting graceful shutdown...`);
+
+//             server.close(async () => {
+//                 console.log('HTTP server closed');
+
+//                 try {
+//                     await mongoose.connection.close();
+//                     console.log('MongoDB connection closed');
+//                 } catch (err) {
+//                     console.error('Error closing MongoDB:', err);
+//                 }
+
+//                 try {
+//                     if (redisClient.isOpen) {
+//                         await redisClient.quit();
+//                         console.log('Redis connection closed');
+//                     }
+//                 } catch (err) {
+//                     console.error('Error closing Redis:', err);
+//                 }
+
+//                 process.exit(0);
+//             });
+
+//             // Force shutdown after 10 seconds
+//             setTimeout(() => {
+//                 console.error('Forced shutdown after timeout');
+//                 process.exit(1);
+//             }, 10000);
+//         };
+
+//         process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+//         process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+//         // Handle uncaught errors
+//         process.on('unhandledRejection', (reason, promise) => {
+//             console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+//         });
+
+//         process.on('uncaughtException', (error) => {
+//             console.error('Uncaught Exception:', error);
+//             gracefulShutdown('uncaughtException');
+//         });
+
+//     } catch (error) {
+//         console.error('Failed to start server:', error);
+//         process.exit(1);
+//     }
+// };
 
 main();
